@@ -7,6 +7,7 @@ import (
 	"strings"
 	"os"
 	"path/filepath"
+	"mime"
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
 )
@@ -41,9 +42,20 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 	defer file.Close()
 
-	mediaType := header.Header.Get("Content-Type")
-	if mediaType == "" {
+	mType := header.Header.Get("Content-Type")
+	if mType == "" {
 		respondWithError(w, http.StatusBadRequest, "Missing Content-Type for thumbnail", nil)
+		return
+	}
+
+	mediaType, _, err := mime.ParseMediaType(mType)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "No Mime Type provided", nil)
+		return
+	}
+
+	if mediaType != "image/jpeg" && mediaType != "image/png" {
+		respondWithError(w, http.StatusBadRequest, "Invalid file type", nil)
 		return
 	}
 
@@ -76,7 +88,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusUnauthorized, "Not authorized to update this video", nil)
 		return
 	}
-	
+
 	dataUrl := fmt.Sprintf("http://localhost:%s/%s", cfg.port, filePath)
 	video.ThumbnailURL = &dataUrl
 
