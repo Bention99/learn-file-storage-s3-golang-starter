@@ -94,14 +94,39 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Couldn't generate random key", err)
 		return
 	}
-	key := hex.EncodeToString(randomBytes) + ".mp4"
 
+	processedVideo, err := processVideoForFastStart(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't create processed Video format", err)
+		return 
+	}
+
+	processedVideoFile, err := os.Open(processedVideo)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Error opening processed video", err)
+		return 
+	}
+
+	aspectRatio, err := getVideoAspectRatio(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't get Aspect Ratio", err)
+		return
+	}
+
+	key := "other/" + hex.EncodeToString(randomBytes) + ".mp4"
+
+	if aspectRatio == "16:9" {
+		key = "landscape/" + hex.EncodeToString(randomBytes) + ".mp4"
+	} else if aspectRatio == "9:16" {
+		key = "portrait/" + hex.EncodeToString(randomBytes) + ".mp4"
+	}
+	
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &cfg.s3Bucket,
 		Key:         &key,
-		Body:        tempFile,
+		Body:        processedVideoFile,
 		ContentType: &mediaType,
-		ACL:         types.ObjectCannedACLPrivate, // change if your assignment expects public-read
+		ACL:         types.ObjectCannedACLPrivate,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't upload to S3", err)
